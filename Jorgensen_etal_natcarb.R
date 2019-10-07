@@ -527,11 +527,15 @@ for(i in 1:length(modList.perarea)) {
 combined.results <- mi.meld(q = b.out, se = se.out)
 area.resp.mod <- list(data.frame(coef=combined.results$q.mi[1,],
                             se=combined.results$se.mi[1,],
-                            tvalue=combined.results$q.mi[1,]/combined.results$se.mi[1,]),
+                            up=combined.results$q.mi[1,]+combined.results$se.mi[1,]*1.96,
+                            lo=combined.results$q.mi[1,]-combined.results$se.mi[1,]*1.96,
+                            tvalue=combined.results$q.mi[1,]/combined.results$se.mi[1,],
+                            Pvalue=2*pt(-abs(combined.results$q.mi[1,]/combined.results$se.mi[1,]),df=Inf)),
                             data.frame(t(apply(ran.out,2,mean))),
                       data.frame(t(summary(modList.perarea[[1]])$ngrps), N=length(resid(modList.perarea[[1]]))))
 colnames(area.resp.mod[[2]]) <- c("witin-site", "between-site","within-plot")
-write.csv(data.frame(area.resp.mod[[1]],area.resp.mod[[2]],area.resp.mod[[3]]), "models_fig3.csv")
+write.csv(data.frame(area.resp.mod[[1]],
+                     area.resp.mod[[2]][,c(3,1,2)],area.resp.mod[[3]]), "models_fig3.csv")
 
 # # quantify % decrease in unthinned stands
 ((exp(sum(area.resp.mod[[1]][,1][c(1,2,3,6)])) / 
@@ -591,7 +595,6 @@ dev.off()
 
 #____Stat tables####
 write.csv(newDat, file="Figure3b_table.csv", row.names = FALSE)
-
 
 # Supp mtrl Fig 1 - mineral N conc####
 mean.N <- mean(dat[dat$N_g_m2>0,"N_g_m2"])
