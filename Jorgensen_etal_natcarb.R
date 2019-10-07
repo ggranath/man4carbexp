@@ -1,33 +1,44 @@
 ##############################################################################
-# R script for manuscript
-# "Forest management as a natural climate solution"
-# Jorgensen et al.
-#
-# Contact about R script: gustaf.granath@gmail.com
+# R script for manuscript                                                    #
+# "Forest management as a natural climate solution"                          #
+# Jörgensen K, Granath G, Lindahl B, Strengbom J                             #
+#                                                                            #
+# Contact about R script: gustaf.granath@gmail.com                           #
 ##############################################################################
 
-# required packages
-library(ggplot2)
-library(lme4)
-library(dplyr)
-library(nlme)
-library(car)
-library(sjPlot)
-library(tidyr)
-library(Amelia) # for imputations
-library(merTools)
-library(gridExtra)
+# This has been tested under:
+# R version 3.5.3 (2019-03-11)
+# Platform: x86_64-pc-linux-gnu (64-bit), Ubuntu 16.04.6 LTS
 
-# Load prepared data set####
+# required packages
+# Statistical analyses
+library(lme4) # ver 1.1-20
+library(nlme) # ver 3.1-137
+library(lmerTest) # ver 3.1-0
+library(car) # ver 3.0-2
+library(merTools) # ver 0.4.1
+
+# Plotting and data handling
+library(ggplot2) # ver 3.2
+library(gridExtra) # ver 2.3
+library(sjPlot) # ver 2.6.2
+library(tidyr) # ver 0.8.2
+library(dplyr) # ver 0.8.0.1
+
+#  Perform imputations
+library(Amelia) # # ver 1.7.5
+
+# Load prepared data sets####
 dat <- read.csv("jorgensen_etal_data.csv")
 resp <- read.csv("jorgensen_etal_soil_resp.csv")
 
-# Get merged data set
-# Processing raw soil respiration data (not uploaded)
+# Processing raw soil respiration data (not uploaded at the moment)
 #source("Jorgensen_etal_prep_data.R")
-#
 
-# Figure 1 - C stock tree-soil,removed C, ecosystem C ####
+# In these calcualtions we assume 50% carbon content of the biomass (hence, '*0.5'). 
+
+# Figure 1 - C stock tree-soil,removed C, net ecosystem C seq ####
+
 # Calculate mean N application and
 # standardize so this is the N effect in models corrsponds
 # to 88.1 g N per square meter
@@ -38,7 +49,8 @@ data.t$thin <- relevel(data.t$thin, ref = "thin")
 
 #__C stock trees####
 # C - stand tree carbon
-tree.stand <- lmerTest::lmer((tot.stand.end*0.5/1000) ~  
+# Divide by 1000 to get the units right
+tree.stand <- lmerTest::lmer((tot.stand.end*0.5/1000) ~ 
                                N_mean_g_m2 * thin + P + (1|no_exp), 
                              data=data.t)
 
@@ -59,7 +71,7 @@ NewDat.treeStand
 
 
 #__C stock organic soil####
-
+# *10/1000 to get the units right
 soilC <- lmerTest::lmer((C_m2/1000)*10 ~  N_mean_g_m2 * thin + P + 
                           (1|no_exp), 
                         data=data.t)
@@ -251,8 +263,8 @@ data.t$thin <- relevel(data.t$thin, ref = "thin")
 #                          (1|no_exp), 
 #                        data=data.t)
 #summary(soilC)
-
 # thin * latitude not important so removed for simplicity
+
 #__a) - effect on soil C####
 soilC <- lmerTest::lmer((C_m2/1000)*10 ~  N_mean_g_m2 * thin + P + 
                           N_mean_g_m2*lat_wgs84 +
@@ -587,17 +599,12 @@ dat$N_mean_g_m2 <- dat$N_g_m2/mean.N
 data.t <- dat
 data.t$thin <- relevel(data.t$thin, ref = "thin")
 
-# Both N sources
-#soilN <- lmerTest::lmer((NH4.N_g_soil + NO3.N_g_soil) ~  N_mean_g_m2 * thin + P +
-#                          (1|no_exp), 
-#                        data=data.t)
-#summary(soilN)
-#tab_model(soilN)
+# Test both N compounds
 
-soilNO3 <- lmerTest::lmer(NO3.N_g_soil ~  N_mean_g_m2 * thin + P +
+soilNO3 <- lmerTest::lmer(NO3.N_mg_g_soil ~  N_mean_g_m2 * thin + P +
                             (1|no_exp), 
                           data=data.t)
-soilNH4 <- lmerTest::lmer(NH4.N_g_soil ~  N_mean_g_m2 * thin + P +
+soilNH4 <- lmerTest::lmer(NH4.N_mg_g_soil ~  N_mean_g_m2 * thin + P +
                             (1|no_exp), 
                           data=data.t)
 
@@ -656,7 +663,7 @@ soilNeff <- ggplot(NewDat.no3, aes(x=vars, y=eff)) +
                     labels= c("NO3-", "NH4+")) +
   theme(legend.justification=c(0.90,.3), legend.position=c(0.9,.3))
 
-ggsave("figure5_mineral_N.png", soilNeff, height=10, width=18, units="cm") 
+ggsave("SM_figure1_mineral_N.png", soilNeff, height=10, width=18, units="cm") 
 
 #__Stat tables####
 # stats
@@ -675,7 +682,8 @@ write.csv(SMfig1, "SMfig1_table.csv", row.names = FALSE)
 
 # Area managed boreal forest w/o permafrost####
 # not permission to put these files online at the moment
-# see references
+# For now, this will only show the approach. 
+# see references for data
 library(rgdal)
 library(raster)
 setwd("~/Downloads")
@@ -702,8 +710,8 @@ ar.km2*100/1000000 # million ha
 
 
 # Map over sites ####
-# Check
-# https://www.google.com/maps/d/edit?hl=sv&mid=1YI1rB8bTh6yQxq5RTvWSdyZasrk&ll=58.99635490768287%2C18.636694475330955&z=6
+# You can use this link for an overview map of the experimental sites
+# https://drive.google.com/open?id=1YI1rB8bTh6yQxq5RTvWSdyZasrk&usp=sharing
 
 # Check residuals ####
 # here with soilC model as an example
