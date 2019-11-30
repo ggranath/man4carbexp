@@ -7,7 +7,7 @@
 ##############################################################################
 
 # This has been tested under:
-# R version 3.5.3 (2019-03-11)
+# R version 3.5.3 (2019-11-30)
 # Platform: x86_64-pc-linux-gnu (64-bit), Ubuntu 16.04.6 LTS
 
 # required packages
