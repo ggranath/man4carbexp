@@ -596,7 +596,7 @@ dev.off()
 #____Stat tables####
 write.csv(newDat, file="Figure3b_table.csv", row.names = FALSE)
 
-# Supp mtrl Fig 1 - mineral N conc####
+# Figure 4 - NH4/NO3-N conc####
 mean.N <- mean(dat[dat$N_g_m2>0,"N_g_m2"])
 dat$N_mean_g_m2 <- dat$N_g_m2/mean.N
 data.t <- dat
@@ -642,20 +642,23 @@ NewDat.nh4$vars <- c("Thinning", "Thinning + N", "No thinning", "No thinning + N
 soilNeff <- ggplot(NewDat.no3, aes(x=vars, y=eff)) + 
   geom_hline(yintercept=0, lty=2, lwd=1, colour="grey50") +
   geom_errorbar(aes(ymin=lo_95, ymax=up_95), 
-                lwd=0.5, colour="black", width=0, position=position_nudge(x=0.1)) +
+                lwd=0.7, colour="black", width=0, position=position_nudge(x=0.1)) +
   geom_point(size=2, pch=21, aes(fill="white"), position=position_nudge(x=0.1)) +
   geom_point(data=NewDat.nh4, aes(x=vars, y=eff, fill="black"), position=position_nudge(x=-0.1), 
              size=2, pch=21) +
   geom_errorbar(data=NewDat.nh4, aes(ymin=lo_95, ymax=up_95), 
-                lwd=0.5, colour="black", width=0, position=position_nudge(x=-0.1)) +
+                lwd=0.7, colour="black", width=0, position=position_nudge(x=-0.1)) +
   #  ylim(c(-10, 100)) +
   xlab("") +
-  ylab("Effect on soil NH4+/NO3-N (mg g-1)") +
-  theme(axis.text.x  = element_text(size=12),
-        axis.text.y  = element_text(size=12),
+   ylab(expression(Effect ~on ~soil ~NH[4]^{"+"} ~and ~NO[3]^{"-"} ~ (mg ~g^{-1}))) +
+  theme_classic() +
+  theme(axis.text  = element_text(size=12, colour="black"),
         axis.title.x  = element_text(size=14),
-        legend.title=element_text(size=13), 
-        legend.text=element_text(size=12.5)) +
+        legend.title=element_text(size=14),
+        legend.text=element_text(size=14),
+        #legend.key.size = 3,
+        legend.justification=c(0.90,.3), 
+        legend.position=c(0.9,.3)) +
   coord_flip() +
   scale_x_discrete(limits= c("Thinning", "Thinning + N", "Thinning + N + P",
                              "No thinning", "No thinning + N"),
@@ -663,11 +666,14 @@ soilNeff <- ggplot(NewDat.no3, aes(x=vars, y=eff)) +
                              "No thinning", "No thinning + N")) +
   scale_y_continuous(limits = c(-0.02, 0.05), breaks=seq(-0.02, 0.05, 0.01)) +
   scale_fill_manual(name="Model",values=c("black", "white"), breaks = c("white", "black"), 
-                    labels= c("NO3-", "NH4+")) +
-  theme(legend.justification=c(0.90,.3), legend.position=c(0.9,.3))
+                    labels= c(expression(NO[3]^{"-"}), expression(NH[4]^{"+"})))
 
-ggsave("SM_figure1_mineral_N.png", soilNeff, height=10, width=18, units="cm") 
+ggsave("Figure4_NHNO_N.png", soilNeff, height=10, width=18, units="cm") 
+pdf("Figure4_NHNO_N.pdf", width=6.5, height=5)
+grid.arrange(soilNeff, ncol=1, nrow =1)
+dev.off()
 
+# Supp mtrl####
 #__Stat tables####
 # stats
 tab_model(list(soilNO3, soilNH4), 
