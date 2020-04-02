@@ -93,25 +93,48 @@ newDat.soil$treatment <- c("Thinning", "Thinning + N", "No thinning", "No thinni
 newDat.soil
 
 #__Change in removed C####
-# Changes in carbon removed by thinning. Testing thinnged vs thinned + N 
+        # # Changes in carbon removed by thinning. Testing thinnged vs thinned + N 
+        # tree.removed <- lmerTest::lmer((pine_thin_stem + pine_thin_liv.branch + pine_thin_dead.branch + 
+        #                                   spruce_thin_stem + spruce_thin_liv.branch + spruce_thin_dead.branch)*0.5/1000 ~
+        #                                  N_mean_g_m2 + P + (1|no_exp), data=data.t[data.t$thin == "thin",])
+        # 
+        # summary(tree.removed)
+        # tab_model(tree.removed)
+        # newDat.remTree <- data.frame(N_mean_g_m2 = c(0,1,1), thin = c("thin", "thin", "thin"),
+        #                           P = c("no_P","no_P", "Pxtra"))
+        # newDat.remTree$thin <- relevel(newDat.remTree$thin, ref="thin")
+        # X <- model.matrix(~N_mean_g_m2  + P,
+        #                   newDat.remTree)
+        # 
+        # newDat.remTree$eff <- c(fixef(tree.removed)[-1] %*% t(X[,-c(1)]))
+        # X[,1] <-c(1,0,0)
+        # cis <- cbind(newDat.remTree$eff - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)),
+        #              newDat.remTree$eff + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)))
+        # colnames(cis) <- c("lo_95", "up_95")
+        # newDat.remTree <- cbind(newDat.remTree, cis)
+        # newDat.remTree$treatment <- c("Thinning", "Thinning + N", "Thinning + N + P")
+        # newDat.remTree
+
+#____removed in non-thinned stands as well#### 
 tree.removed <- lmerTest::lmer((pine_thin_stem + pine_thin_liv.branch + pine_thin_dead.branch + 
                                   spruce_thin_stem + spruce_thin_liv.branch + spruce_thin_dead.branch)*0.5/1000 ~
-                                 N_mean_g_m2 + P + (1|no_exp), data=data.t[data.t$thin == "thin",])
+                                 N_mean_g_m2*thin + P + (1|no_exp), data=data.t)
 summary(tree.removed)
 tab_model(tree.removed)
-newDat.remTree <- data.frame(N_mean_g_m2 = c(0,1,1), thin = c("thin", "thin", "thin"),
-                          P = c("no_P","no_P", "Pxtra"))
-newDat.remTree$thin <- relevel(newDat.remTree$thin, ref="thin")
-X <- model.matrix(~N_mean_g_m2  + P,
-                  newDat.remTree)
-newDat.remTree$eff <- c(fixef(tree.removed)[-1] %*% t(X[,-c(1)]))
-X[,1] <-c(1,0,0)
-cis <- cbind(newDat.remTree$eff - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)),
-             newDat.remTree$eff + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)))
+NewDat.remTree <- data.frame(N_mean_g_m2 = c(0,1,0,1,1), thin = c("thin", "thin","no_thin","no_thin", "thin"),
+                              P = c("no_P","no_P","no_P","no_P","Pxtra"))
+NewDat.remTree$thin <- relevel(NewDat.remTree$thin, ref="thin")
+X <- model.matrix(~N_mean_g_m2 * thin + P,
+                  NewDat.remTree)
+NewDat.remTree$eff <- c(fixef(tree.removed)[-1] %*% t(X[,-c(1)]))
+X[,1] <-c(1,0,0,0,0)
+cis <- cbind(NewDat.remTree$eff - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)),
+             NewDat.remTree$eff + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)))
 colnames(cis) <- c("lo_95", "up_95")
-newDat.remTree <- cbind(newDat.remTree, cis)
-newDat.remTree$treatment <- c("Thinning", "Thinning + N", "Thinning + N + P")
-newDat.remTree
+NewDat.remTree <- cbind(NewDat.remTree, cis)
+NewDat.remTree$treatment <- c("Thinning", "Thinning + N", "No thinning", "No thinning + N", 
+                               "Thinning + N + P")
+NewDat.remTree
 
 #__Change in total net C uptake - excluding removed####
 # Changes in total C stock. I.e. excluding C removed from the site. 
@@ -127,8 +150,8 @@ X <- model.matrix(~N_mean_g_m2 * thin + P,
                   NewDat.totstand)
 NewDat.totstand$eff <- c(fixef(C.stand.stock)[-1] %*% t(X[,-c(1)]))
 X[,1] <-c(1,0,0,0,0)
-cis <- cbind(NewDat.totstand$eff - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.stand)  %*% x)*1.96)),
-             NewDat.totstand$eff + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.stand)  %*% x)*1.96)))
+cis <- cbind(NewDat.totstand$eff - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(C.stand.stock)  %*% x)*1.96)),
+             NewDat.totstand$eff + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(C.stand.stock)  %*% x)*1.96)))
 colnames(cis) <- c("lo_95", "up_95")
 NewDat.totstand <- cbind(NewDat.totstand, cis)
 NewDat.totstand$treatment <- c("Thinning", "Thinning + N", "No thinning", "No thinning + N", 
@@ -201,17 +224,31 @@ mod.est.soil$treatment <- c("Thinning", "Thinning + N", "No thinning", "No thinn
                        "Thinning + N + P")
 
 # tree C removed
-mod.est.rem.tree <- data.frame(N_mean_g_m2 = c(0,1,1), thin = c("thin", "thin", "thin"),
-                           P = c("no_P","no_P","Pxtra"))
-mod.est.rem.tree$thin <- relevel(mod.est.rem.tree$thin, ref="thin")
-X <- model.matrix(~N_mean_g_m2 + P,
-                  mod.est.rem.tree)
-mod.est.rem.tree$estimate <- c(fixef(tree.removed) %*% t(X))
-cis <- cbind(mod.est.rem.tree$estimate - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)),
-             mod.est.rem.tree$estimate + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)))
-colnames(cis) <- c("lo_95", "up_95")
-mod.est.rem.tree <- cbind(mod.est.rem.tree, cis)
-mod.est.rem.tree$treatment <- c("Thinning", "Thinning + N", "Thinning + N + P")
+          # mod.est.rem.tree <- data.frame(N_mean_g_m2 = c(0,1,1), thin = c("thin", "thin", "thin"),
+          #                            P = c("no_P","no_P","Pxtra"))
+          # mod.est.rem.tree$thin <- relevel(mod.est.rem.tree$thin, ref="thin")
+          # X <- model.matrix(~N_mean_g_m2 + P,
+          #                   mod.est.rem.tree)
+          # mod.est.rem.tree$estimate <- c(fixef(tree.removed) %*% t(X))
+          # cis <- cbind(mod.est.rem.tree$estimate - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)),
+          #              mod.est.rem.tree$estimate + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)))
+          # colnames(cis) <- c("lo_95", "up_95")
+          # mod.est.rem.tree <- cbind(mod.est.rem.tree, cis)
+          # mod.est.rem.tree$treatment <- c("Thinning", "Thinning + N", "Thinning + N + P")
+
+  # tree C removed for all treatments
+  mod.est.rem.tree <- data.frame(N_mean_g_m2 = c(0,1,0,1,1), thin = c("thin", "thin","no_thin","no_thin", "thin"),
+                               P = c("no_P","no_P","no_P","no_P","Pxtra"))
+  mod.est.rem.tree$thin <- relevel(mod.est.rem.tree$thin, ref="thin")
+  X <- model.matrix(~N_mean_g_m2 * thin + P,
+                    mod.est.rem.tree)
+  mod.est.rem.tree$estimate <- c(fixef(tree.removed) %*% t(X))
+  cis <- cbind(mod.est.rem.tree$estimate - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)),
+               mod.est.rem.tree$estimate + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)))
+  colnames(cis) <- c("lo_95", "up_95")
+  mod.est.rem.tree <- cbind(mod.est.rem.tree, cis)
+  mod.est.rem.tree$treatment <- c("Thinning", "Thinning + N", "No thinning", "No thinning + N", 
+                                "Thinning + N + P")
 
 # Total net C uptake - excl removed
 mod.est.net.stand.tot <- data.frame(N_mean_g_m2 = c(0,1,0,1,1), thin = c("thin", "thin","no_thin","no_thin", "thin"),
@@ -249,6 +286,77 @@ fig1.est$model <- c(rep(c("tree_stock","soil_stock","tree_removed",
                            times=c(5,5,3,5,5)))
 write.csv(fig1.est, "Figure1_estimate_table.csv")
 
+
+#____Plot figure 1####
+fig1.est <- rbind(mod.est.stand.tree, mod.est.soil, mod.est.rem.tree, 
+                  mod.est.net.stand.tot, mod.est.tot.net)
+fig1.est$model <- c(rep(c("tree_stock","soil_stock","tree_removed",
+                          "Tot C seq-excl removed", "Tot C seq-incl removed"), 
+                        times=c(5,5,5,5,5)))
+library(cowplot)
+theme_set(theme_cowplot())
+
+fig1.est$treat <- factor(fig1.est$treatment, levels=c("Thinning", "Thinning + N", "Thinning + N + P",
+                                                      "No thinning", "No thinning + N"))
+fig1.est$model <- factor(fig1.est$model, levels = c("Tot C seq-incl removed", "Tot C seq-excl removed",
+                                                    "tree_stock","soil_stock","tree_removed"))
+fig1.est$diff <- round(fig1.est$estimate - rep(fig1.est$estimate[c(1,6,11,16,21)],each=5),0) 
+fig1.est$diff <- paste("+", fig1.est$diff, sep="")
+fig1.est$diff[fig1.est$diff=="+0"] <- ""
+
+yl = expression(Thinned ~C ~ (t ~ha^{-1}))
+fig2a_new <- ggplot(fig1.est[fig1.est$model == "tree_removed",], 
+       aes(x=treat, y=estimate)) + 
+  geom_point(size=3, shape=21, fill="white") +
+  geom_errorbar(aes(ymin=lo_95, ymax=up_95), colour="black", width=.1) +
+  ylim(c(0,75)) +
+  ylab(yl) +
+  xlab("") +
+  scale_x_discrete(labels = c("Thinning", "Thinning + N", "Thinning + NP",
+                              "Self-thinning", "Self-thinning + N")) +
+  draw_plot_label("(b)", x= 0.5, y = 70, fontface = "plain",  
+                  hjust = 0, vjust = 0, size=22 )+
+  theme(plot.margin = unit(c(2,0,1,0), "cm"))
+
+yl = expression(C ~stock ~ (t ~ha^{-1}))
+base = data.frame(ystart = c(156.6,115.2), xstart = c(0.75, 0.75), xend = c(5.25, 5.25),
+                  model = c("Tot C seq-excl removed", "Tot C seq-incl removed"))
+fig2b_new <- ggplot(fig1.est[fig1.est$model %in% c("Tot C seq-excl removed", "Tot C seq-incl removed"),], 
+       aes(x=treat, y=estimate, fill=model, group=model)) + 
+  geom_point(position=position_dodge(0.25), size=3, shape=21) +
+  geom_errorbar(aes(ymin=lo_95, ymax=up_95), colour="black", width=.1, position=position_dodge(0.25)) +
+  geom_text(aes(label= diff),hjust=rep(c(-0.8,-0.05),each=5),vjust=-0.65,size=4) +
+  geom_segment(aes(x = xstart, y = ystart, xend = xend, yend = ystart, group=model), 
+               data = base, linetype="dashed", color= c("red", "black")) +
+  ylim(c(0,250)) +
+  ylab(yl) +
+  xlab("") +
+  #geom_hline(yintercept = 115, color="red") +
+  scale_fill_manual(values = c("red", "black"),
+                    name = "Model", labels = c("Thinned C included", "Thinned C excluded")) +
+  scale_x_discrete(labels = c("Thinning", "Thinning + N", "Thinning + NP",
+                              "Self-thinning", "Self-thinning + N")) + 
+  theme(legend.position = c(0.7, 0.3),
+        plot.margin = margin(1, 0, 2, 0)) +
+  draw_plot_label("(c)", x= 0.5, y = 235, fontface = "plain",  
+                  hjust = 0, vjust = 0, size=22 )
+fig2b_new
+
+library(magick)
+a_pan <- ggdraw() + draw_image("fig1a_im.png", scale = 1.25, width = 1, height = 0.75)+ theme(
+  plot.margin = margin(0.5, 0, 0, 0))
+bc = align_plots(fig2a_new, fig2b_new, align = "v")
+dd = plot_grid(bc[[1]], bc[[2]], ncol=1)
+fig2_new <- plot_grid(a_pan, dd, ncol=1, labels = c("     (a)","",""), 
+                      label_size = 22, label_fontface = "plain",
+                      rel_heights = c(0.69, 2))
+
+#save_plot("fig2_new2.png", fig2_new, base_height = NULL, base_asp = 1, base_width = 8)
+save_plot("fig1_new.png", fig2_new, base_height = NULL, base_asp = 0.77, base_width = 8)
+
+# alternative way
+#rr = grid.arrange(grobs=list(a_pan,dd), ncol=1, heights = 0.5:2)
+#ggsave("fig2_new5.png",rr, width =8, height=10.4)
 
 
 # Figure 2 - soil C along latitudinal gradient ####
