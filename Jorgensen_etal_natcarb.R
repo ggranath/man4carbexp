@@ -410,7 +410,7 @@ cseq.soil.lat <- ggplot(newDat.soil, aes(x=lat_grad, y=eff, colour=vars)) +
   geom_line() +
   xlab("Latitude (degree North)") +
   ylab(yl) +
-  draw_plot_label("(b)", x= 56.5, y = 16, fontface = "plain",  
+  draw_plot_label("(b)", x= 56.5, y = 15.75, fontface = "plain",  
                   hjust = 0, vjust = 0, size=22 ) +
   #labs(tag = "B") +
   theme_classic() +
@@ -420,14 +420,14 @@ cseq.soil.lat <- ggplot(newDat.soil, aes(x=lat_grad, y=eff, colour=vars)) +
     legend.title=element_text(size=12), 
     legend.text=element_text(size=12),
     legend.justification=c(0.25,1),
-    legend.position=c(0.25,1))+
+    legend.position=c(0.22,1))+
     #legend.box.background = element_rect(colour = "black")) +
   scale_y_continuous(limits = c(-2, 16), breaks=seq(-2, 16, 2)) +
   scale_color_manual(name="Treatments",values=c("#E69F00", "#CC79A7", "black", "#009E73", "#0072B2"), 
                      breaks = c(c("No thinning + N", "Thinning + N + P","Thinning + N",
                                   "Thinning", "No thinning")), 
-                     labels= c("No thinning + N", "Thinning + NP","Thinning + N",
-                               "Thinning (reference)", "No thinning"))
+                     labels= c("Self-thinning + N", "Thinning + NP","Thinning + N",
+                               "Thinning (reference)", "Self-thinning"))
 #cseq.soil.lat
 
 #__a) effect on tree production####
@@ -478,16 +478,16 @@ cseq.totprod.lat <- ggplot(newDat, aes(x=lat_grad, y=eff, colour=vars)) +
         legend.title=element_text(size=12), 
         legend.text=element_text(size=12),
         legend.justification=c(0.25,1),
-        legend.position=c(0.25,1))+
+        legend.position=c(0.22,1))+
   scale_y_continuous(limits = c(-2, 75), breaks=c(seq(0,75, 10))) +
   scale_color_manual(name="Treatments",values=c("#E69F00", "#CC79A7", "black", "#009E73", "#0072B2"), 
                      breaks = c(c("No thinning + N", "Thinning + N + P","Thinning + N",
                                   "Thinning", "No thinning")), 
-                     labels= c("No thinning + N", "Thinning + NP","Thinning + N",
-                               "Thinning (reference)", "No thinning"))
+                     labels= c("Self-thinning + N", "Thinning + NP","Thinning + N",
+                               "Thinning (reference)", "Self-thinning"))
 #cseq.totprod.lat
 
-pdf("figure2_soil_tottree_new.pdf", width=6.5, height=10)
+pdf("figure2_soil_tottree_new.pdf", width=6.33, height=9.75)
 grid.arrange(cseq.totprod.lat, cseq.soil.lat, ncol=1, nrow =2)
 dev.off()
 
@@ -560,14 +560,14 @@ fig5 <- ggplot(agg.dat, aes_string(x=xa, y=ya,color = "real_treat", shape = "rea
                                 "thinning", "thinning+N","thinning+NP"), 
                      values = c("not_thinned" = "#E69F00", "not_thinned+N" = "#CC79A7",
                                 "thinning" = "black", "thinning+N" = "#009E73","thinning+NP" = "#0072B2"),
-                     labels = c("No thinning", "No thinning + N", 
+                     labels = c("Self-thinning", "Self-thinning + N", 
                                 "Thinning", "Thinning + N", "Thinning + NP")) +
   scale_shape_manual(name = "Treatment", 
                      breaks = c("not_thinned", "not_thinned+N",
                                 "thinning", "thinning+N","thinning+NP"), 
                      values = c(1,2,3,4,5), #c("not_thinned" = "#49b7fc", "not_thinned+N" = "#ff7b00",
                      #"thinning" = "#17d898", "thinning+N" = "#ff0083","thinning+NP" = "#0015ff"),
-                     labels = c("No thinning", "No thinning + N", 
+                     labels = c("Self-thinning", "Self-thinning + N", 
                                 "Thinning", "Thinning + N", "Thinning + NP")) +
     theme_classic() +
   theme(#legend.justification = c(0, 0), 
@@ -690,7 +690,7 @@ fig3 <- ggplot(newDat, aes(x=vars, y=eff)) +
   geom_errorbar(aes(ymin=lo_95, ymax=up_95), 
                 lwd=0.7, colour="black", width=0, position=position_nudge(x=0)) +
   geom_point(size=2, position=position_nudge(x=0)) +
-  labs(tag = "B") +
+  #labs(tag = "B") +
   xlab("") +
   ylab("Effect on soil respiration (% change)") +
   theme_classic() +
@@ -701,11 +701,12 @@ fig3 <- ggplot(newDat, aes(x=vars, y=eff)) +
   scale_x_discrete(limits= c("Thinning", "Thinning + N", 
                              "No thinning", "No thinning + N"),
                    labels= c("Thinning", "Thinning + N", 
-                             "No thinning", "No thinning + N")) +
-  scale_y_continuous(limits = c(-35, 35), breaks=seq(-30, 35, 5))
+                             "Self-thinning", "Self-thinning + N")) +
+  scale_y_continuous(limits = c(-35, 35), breaks=seq(-35, 35, 5))
 
+ggsave("figure3_prod_resp.png", fig3, height=10, width=18, units="cm") 
 pdf("figure3_prod_resp.pdf", width=6.5, height=10)
-grid.arrange(fig3, fig3b, ncol=1, nrow =2)
+grid.arrange(fig3, ncol=1, nrow =2)
 dev.off()
 
 #____Stat tables####
@@ -778,7 +779,7 @@ soilNeff <- ggplot(NewDat.no3, aes(x=vars, y=eff)) +
   scale_x_discrete(limits= c("Thinning", "Thinning + N", "Thinning + N + P",
                              "No thinning", "No thinning + N"),
                    labels= c("Thinning", "Thinning + N", "Thinning + NP",
-                             "No thinning", "No thinning + N")) +
+                             "Self-thinning", "Self-thinning + N")) +
   scale_y_continuous(limits = c(-0.02, 0.05), breaks=seq(-0.02, 0.05, 0.01)) +
   scale_fill_manual(name="Model",values=c("black", "white"), breaks = c("white", "black"), 
                     labels= c(expression(NO[3]^{"-"}), expression(NH[4]^{"+"})))
