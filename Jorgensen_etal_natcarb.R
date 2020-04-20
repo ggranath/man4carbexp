@@ -139,7 +139,8 @@ NewDat.remTree
 
 #__Change in total net C uptake - excluding removed####
 # Changes in total C stock. I.e. excluding C removed from the site. 
-C.stand.stock <- lmerTest::lmer(((tot.stand.end*0.5/1000)+((C_m2/1000)*10)) ~  
+data.t$c_st_stock <- with(data.t, ((tot.stand.end*0.5/1000)+((C_m2/1000)*10))) # fix response variable
+C.stand.stock <- lmerTest::lmer(c_st_stock ~  
                                   N_mean_g_m2 * thin + P + (1|no_exp), 
                                 data=data.t)
 summary(C.stand.stock)
@@ -160,7 +161,8 @@ NewDat.totstand$treatment <- c("Thinning", "Thinning + N", "No thinning", "No th
 NewDat.totstand
 
 #__Change in total net C uptake-including removed####
-c.tot <- lmerTest::lmer(((tot.prod.bio*0.5/1000)+((C_m2/1000)*10)) ~  
+data.t$c_tot <- with(data.t, ((tot.prod.bio*0.5/1000)+((C_m2/1000)*10)))
+c.tot <- lmerTest::lmer(c_tot ~  
                           N_mean_g_m2 * thin + P + (1|no_exp), 
                         data=data.t)
 
@@ -181,18 +183,18 @@ newDat.ctot
 
 #__Stat tables fig 1####
 #____stats_models####
-tab_model(list(tree.stand,soilC, tree.removed, C.stand.stock, c.tot), 
-          pred.labels = c("Intercept (thinned)", "Nitrogen", "Unthinned", 
-                          "P added (Unthinned,Nitrogen)", "Nitrogen x Unthinned"), 
+tab_model(list(tree.stand, soilC, tree.removed, C.stand.stock, c.tot), 
+          pred.labels = c("Intercept (Thinned)", "Nitrogen", "Self-thinned", 
+                          "P added (Thinned,Nitrogen)", "Nitrogen x Self-thinned"), 
           dv.labels = c("Standing tree C", "Soil C (t ha-1)", "Removed tree C", 
                         "Total net C uptake-excl removed",
                         "Total net C uptake-incl removed"), collapse.ci = TRUE,
           show.re.var = TRUE, show.icc = FALSE, show.r2 = FALSE,
           file="models_fig1.html")
 # numbers
-fig1.num <- rbind(NewDat.treeStand, newDat.soil, newDat.remTree, NewDat.totstand, newDat.ctot)
+fig1.num <- rbind(NewDat.treeStand, newDat.soil, NewDat.remTree, NewDat.totstand, newDat.ctot)
 fig1.num$model <- c(rep(c("tree_stock","soil_stock","tree_removed",
-                          "Tot C seq-excl removed", "Tot C seq-incl removed"), times=c(5,5,3,5,5)))
+                          "Tot C seq-excl removed", "Tot C seq-incl removed"), times=c(5,5,5,5,5)))
 write.csv(fig1.num, "Figure1_table.csv")
 
 #____Stats predictive values####
@@ -492,10 +494,10 @@ grid.arrange(cseq.totprod.lat, cseq.soil.lat, ncol=1, nrow =2)
 dev.off()
 
 #__Stat tables####
-tab_model(list(soilC, totprod.c.lat), 
-          pred.labels = c("Intercept (thinned)", "Nitrogen", "Unthinned", 
-                          "P added (Unthinned,Nitrogen)", "Latitude",
-                          "Nitrogen x Unthinned", "Nitrogen x Latitude"), 
+tab_model(list(totprod.c.lat, soilC), 
+          pred.labels = c("Intercept (Thinned)", "Nitrogen", "Self-thinned", 
+                          "P added (Thinned,Nitrogen)", "Latitude",
+                          "Nitrogen x Self-thinned", "Nitrogen x Latitude"), 
           dv.labels = c("Soil C (t ha-1)", "Total tree net C"), collapse.ci = TRUE,
           show.re.var = TRUE, show.icc = FALSE, show.r2 = FALSE,
           file="models_fig2.html")
@@ -589,13 +591,13 @@ dev.off()
 #____Stat tables####
 # stats
 tab_model(SOCvsProd, 
-          pred.labels = c("Intercept (Unthinned)", "Nitrogen", "Thinned", 
+          pred.labels = c("Intercept (Self-thinned)", "Nitrogen", "Thinned", 
                           "Nitrogen x Thinned","P (Thinned,Nitrogen)",
                           "Net tree C uptake",  
                           "Nitrogen x Net tree C uptake", "Thinned x Net tree C uptake", 
                           "Nitrogen x Thinned  x Net tree C uptake",
                           "P added (Thinned,Nitrogen) x Net tree C uptake"),
-          dv.labels = c("Soil organic carbon (Mg)"), collapse.ci = TRUE,
+          dv.labels = c("Soil organic carbon (t ha-1)"), collapse.ci = TRUE,
           show.re.var = TRUE, show.icc = FALSE, show.r2 = FALSE,
           file="models_fig4.html")
 
@@ -710,7 +712,20 @@ grid.arrange(fig3, ncol=1, nrow =2)
 dev.off()
 
 #____Stat tables####
+#Figure 3 table
 write.csv(newDat, file="Figure3_table.csv", row.names = FALSE)
+#Figure 3 model
+write.csv(area.resp.mod, file="Figure3_model.csv", row.names = TRUE)
+
+tab_model(list(tree.stand, soilC, tree.removed, C.stand.stock, c.tot), 
+          pred.labels = c("Intercept (Thinned)", "Nitrogen", "Self-thinned", 
+                          "P added (Thinned,Nitrogen)", "Nitrogen x Self-thinned"), 
+          dv.labels = c("Standing tree C", "Soil C (t ha-1)", "Removed tree C", 
+                        "Total net C uptake-excl removed",
+                        "Total net C uptake-incl removed"), collapse.ci = TRUE,
+          show.re.var = TRUE, show.icc = FALSE, show.r2 = FALSE,
+          file="models_fig1.html")
+
 
 # Figure 4 - NH4/NO3-N conc####
 mean.N <- mean(dat[dat$N_g_m2>0,"N_g_m2"])
@@ -793,8 +808,8 @@ dev.off()
 #__Stat tables####
 # stats
 tab_model(list(soilNO3, soilNH4), 
-          pred.labels = c("Intercept (thinned)", "Nitrogen", "Unthinned", 
-                          "P added (Unthinned,Nitrogen)", "Nitrogen x Unthinned"), 
+          pred.labels = c("Intercept (thinned)", "Nitrogen", "Self-thinned", 
+                          "P added (Self-thinned,Nitrogen)", "Nitrogen x Self-thinned"), 
           dv.labels = c("Soil NH4+-N (mg g-1)", "NO3-N"), collapse.ci = TRUE,
           show.re.var = TRUE, show.icc = FALSE, show.r2 = FALSE,digits = 4,
           file="models_fig5.html")
