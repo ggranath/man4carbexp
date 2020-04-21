@@ -377,9 +377,10 @@ data.t$thin <- relevel(data.t$thin, ref = "thin")
 # thin * latitude not important so removed for simplicity
 
 #__b) - effect on soil C####
-soilC <- lmerTest::lmer((C_m2/1000)*10 ~  N_mean_g_m2 * thin + P + 
+data.t$soil_c <-  with(data.t, (C_m2/1000)*10)
+soilC <- lmerTest::lmer(soil_c ~  N_mean_g_m2 * thin + P + 
                           N_mean_g_m2*lat_wgs84 +
-                          + (1|no_exp), 
+                          (1|no_exp), 
                         data=data.t)
 summary(soilC)
 
@@ -433,7 +434,8 @@ cseq.soil.lat <- ggplot(newDat.soil, aes(x=lat_grad, y=eff, colour=vars)) +
 #cseq.soil.lat
 
 #__a) effect on tree production####
-totprod.c.lat <- lmerTest::lmer((tot.prod.bio*0.5/1000) ~ N_mean_g_m2 * thin + P + 
+data.t$totprod_c <-  with(data.t, (tot.prod.bio*0.5/1000))
+totprod.c.lat <- lmerTest::lmer(totprod_c ~ N_mean_g_m2 * thin + P + 
                                   N_mean_g_m2*lat_wgs84  + 
                                   (1|no_exp), 
                                 data=data.t)
