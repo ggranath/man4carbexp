@@ -7,7 +7,7 @@
 ##############################################################################
 
 # This has been tested under:
-# R version 3.5.3 (2019-11-30)
+# R version 3.5.3 (2020-10-21)
 # Platform: x86_64-pc-linux-gnu (64-bit), Ubuntu 16.04.6 LTS
 
 # required packages
@@ -33,10 +33,20 @@ library(Amelia) # # ver 1.7.5
 dat <- read.csv("jorgensen_etal_data.csv")
 resp <- read.csv("jorgensen_etal_soil_resp.csv")
 
+# In no thinning stands, the dead wood is registered as "removed". We need to 
+# add its stems to the total stand biomass in the end av the period.
+dat$tot.stand.end <- with(dat, ifelse(dat$thin == "no_thin", tot.stand.end + 
+                                                              pine_thin_stem +
+                                                              spruce_thin_stem +
+                                                              decid_thin_stem, 
+                                                              tot.stand.end))
 # Processing raw soil respiration data (not uploaded at the moment)
 #source("Jorgensen_etal_prep_data.R")
 
-# In these calcualtions we assume 50% carbon content of the biomass (hence, '*0.5'). 
+# In these calculations we assume 50% carbon content of the biomass (hence, '*0.5'). 
+
+# proportion pine in stands
+(with( dat, pine_stand_stem.last/(pine_stand_stem.last+spruce_stand_stem.last+decid_stand_stem.last)))
 
 # Figure 1 - C stock tree-soil,removed C, net ecosystem C seq ####
 
@@ -117,11 +127,35 @@ newDat.soil
         # newDat.remTree
 
 #____removed in non-thinned stands as well#### 
-tree.removed <- lmerTest::lmer((pine_thin_stem + pine_thin_liv.branch + pine_thin_dead.branch + 
-                                  spruce_thin_stem + spruce_thin_liv.branch + spruce_thin_dead.branch)*0.5/1000 ~
-                                 N_mean_g_m2*thin + P + (1|no_exp), data=data.t)
+# In no thinning stands nothing was removed and we ignore that treatment
+tree.removed <- lmerTest::lmer((pine_thin_stem + #pine_thin_liv.branch + pine_thin_dead.branch + spruce_thin_liv.branch + spruce_thin_dead.branch + 
+                                  spruce_thin_stem + decid_thin_stem)*0.5/1000 ~
+                                 N_mean_g_m2 + P + (1|no_exp), data=data.t[data.t$thin=="thin",])
 summary(tree.removed)
 tab_model(tree.removed)
+NewDat.remTree <- data.frame(N_mean_g_m2 = c(0,1,1), thin = c("thin", "thin","thin"),
+                             P = c("no_P","no_P","Pxtra"))
+#NewDat.remTree$thin <- relevel(NewDat.remTree$thin, ref="thin")
+X <- model.matrix(~N_mean_g_m2 + P,
+                  NewDat.remTree)
+NewDat.remTree$eff <- c(fixef(tree.removed)[-1] %*% t(X[,-c(1)]))
+X[,1] <-c(1,0,0)
+cis <- cbind(NewDat.remTree$eff - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)),
+             NewDat.remTree$eff + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)))
+colnames(cis) <- c("lo_95", "up_95")
+NewDat.remTree <- cbind(NewDat.remTree, cis)
+
+# add other treatments where nothing was removed
+NewDat.remTree$thin = as.character(NewDat.remTree$thin)
+NewDat.remTree = rbind(NewDat.remTree, c(0,"no_thin","no_P",0,0,0),c(1,"no_thin","no_P",0,0,0))
+
+NewDat.remTree$treatment <- c("Thinning", "Thinning + N", "Thinning + N + P", 
+                              "No thinning", "No thinning + N")
+
+
+
+
+
 NewDat.remTree <- data.frame(N_mean_g_m2 = c(0,1,0,1,1), thin = c("thin", "thin","no_thin","no_thin", "thin"),
                               P = c("no_P","no_P","no_P","no_P","Pxtra"))
 NewDat.remTree$thin <- relevel(NewDat.remTree$thin, ref="thin")
@@ -144,6 +178,13 @@ C.stand.stock <- lmerTest::lmer(c_st_stock ~
                                   N_mean_g_m2 * thin + P + (1|no_exp), 
                                 data=data.t)
 summary(C.stand.stock)
+
+# calculate the enhanced N effect in No thinning stands
+#mean effect
+sum(fixef(C.stand.stock)[c(2,5)])
+#CIs
+sum(fixef(C.stand.stock)[c(2,5)]) - 2*(sqrt(sum(diag(vcov(C.stand.stock))[c(2,5)])+2*vcov(C.stand.stock)[5,2]))
+sum(fixef(C.stand.stock)[c(2,5)]) + 2*(sqrt(sum(diag(vcov(C.stand.stock))[c(2,5)])+2*vcov(C.stand.stock)[5,2]))
 
 NewDat.totstand <- data.frame(N_mean_g_m2 = c(0,1,0,1,1), thin = c("thin", "thin","no_thin","no_thin", "thin"),
                     P = c("no_P","no_P","no_P","no_P","Pxtra"))
@@ -184,18 +225,18 @@ newDat.ctot
 #__Stat tables fig 1####
 #____stats_models####
 tab_model(list(tree.stand, soilC, tree.removed, C.stand.stock, c.tot), 
-          pred.labels = c("Intercept (Thinned)", "Nitrogen", "Self-thinned", 
-                          "P added (Thinned,Nitrogen)", "Nitrogen x Self-thinned"), 
+          pred.labels = c("Intercept (Thinned)", "Nitrogen", "No thinning", 
+                          "P added (Thinned,Nitrogen)", "Nitrogen x No thinning"), 
           dv.labels = c("Standing tree C", "Soil C (t ha-1)", "Removed tree C", 
                         "Total net C uptake-excl removed",
                         "Total net C uptake-incl removed"), collapse.ci = TRUE,
           show.re.var = TRUE, show.icc = FALSE, show.r2 = FALSE,
-          file="models_fig1.html")
+          file="models_fig1_dec2020.html")
 # numbers
 fig1.num <- rbind(NewDat.treeStand, newDat.soil, NewDat.remTree, NewDat.totstand, newDat.ctot)
 fig1.num$model <- c(rep(c("tree_stock","soil_stock","tree_removed",
                           "Tot C seq-excl removed", "Tot C seq-incl removed"), times=c(5,5,5,5,5)))
-write.csv(fig1.num, "Figure1_table.csv")
+write.csv(fig1.num, "Figure1_table_dec2020.csv")
 
 #____Stats predictive values####
 # Get treatment estimates
@@ -240,18 +281,40 @@ mod.est.soil$treatment <- c("Thinning", "Thinning + N", "No thinning", "No thinn
           # mod.est.rem.tree$treatment <- c("Thinning", "Thinning + N", "Thinning + N + P")
 
   # tree C removed for all treatments
-  mod.est.rem.tree <- data.frame(N_mean_g_m2 = c(0,1,0,1,1), thin = c("thin", "thin","no_thin","no_thin", "thin"),
-                               P = c("no_P","no_P","no_P","no_P","Pxtra"))
-  mod.est.rem.tree$thin <- relevel(mod.est.rem.tree$thin, ref="thin")
-  X <- model.matrix(~N_mean_g_m2 * thin + P,
+  mod.est.rem.tree <- data.frame(N_mean_g_m2 = c(0,1,1), thin = c("thin", "thin","thin"),
+                               P = c("no_P","no_P","Pxtra"))
+  #NewDat.remTree$thin <- relevel(NewDat.remTree$thin, ref="thin")
+  X <- model.matrix(~N_mean_g_m2 + P,
                     mod.est.rem.tree)
   mod.est.rem.tree$estimate <- c(fixef(tree.removed) %*% t(X))
   cis <- cbind(mod.est.rem.tree$estimate - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)),
                mod.est.rem.tree$estimate + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)))
   colnames(cis) <- c("lo_95", "up_95")
   mod.est.rem.tree <- cbind(mod.est.rem.tree, cis)
-  mod.est.rem.tree$treatment <- c("Thinning", "Thinning + N", "No thinning", "No thinning + N", 
-                                "Thinning + N + P")
+  
+  # add other treatments where nothing was removed
+  mod.est.rem.tree$thin = as.character(mod.est.rem.tree$thin)
+  mod.est.rem.tree = rbind(mod.est.rem.tree, c(unname(as.list(0)),"no_thin","no_P",unname(as.list(0)),
+                                               unname(as.list(0)),unname(as.list(0))),
+                           c(unname(as.list(1)),"no_thin","no_P",unname(as.list(0)),unname(as.list(0)),
+                             unname(as.list(0))))
+  
+  mod.est.rem.tree$treatment <- c("Thinning", "Thinning + N", "Thinning + N + P", 
+                                "No thinning", "No thinning + N")
+
+
+  # mod.est.rem.tree <- data.frame(N_mean_g_m2 = c(0,1,0,1,1), thin = c("thin", "thin","no_thin","no_thin", "thin"),
+  #                              P = c("no_P","no_P","no_P","no_P","Pxtra"))
+  # mod.est.rem.tree$thin <- relevel(mod.est.rem.tree$thin, ref="thin")
+  # X <- model.matrix(~N_mean_g_m2 * thin + P,
+  #                   mod.est.rem.tree)
+  # mod.est.rem.tree$estimate <- c(fixef(tree.removed) %*% t(X))
+  # cis <- cbind(mod.est.rem.tree$estimate - apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)),
+  #              mod.est.rem.tree$estimate + apply(X, 1, function (x) as.vector(sqrt(x %*% vcov(tree.removed)  %*% x)*1.96)))
+  # colnames(cis) <- c("lo_95", "up_95")
+  # mod.est.rem.tree <- cbind(mod.est.rem.tree, cis)
+  # mod.est.rem.tree$treatment <- c("Thinning", "Thinning + N", "No thinning", "No thinning + N", 
+  #                               "Thinning + N + P")
 
 # Total net C uptake - excl removed
 mod.est.net.stand.tot <- data.frame(N_mean_g_m2 = c(0,1,0,1,1), thin = c("thin", "thin","no_thin","no_thin", "thin"),
@@ -286,8 +349,8 @@ fig1.est <- rbind(mod.est.stand.tree, mod.est.soil, mod.est.rem.tree,
                   mod.est.net.stand.tot, mod.est.tot.net)
 fig1.est$model <- c(rep(c("tree_stock","soil_stock","tree_removed",
                              "Tot C seq-excl removed", "Tot C seq-incl removed"), 
-                           times=c(5,5,3,5,5)))
-write.csv(fig1.est, "Figure1_estimate_table.csv")
+                           times=c(5,5,5,5,5)))
+write.csv(fig1.est, "Figure1_estimate_table_dec2020.csv")
 
 
 #____Plot figure 1####
@@ -296,7 +359,7 @@ fig1.est <- rbind(mod.est.stand.tree, mod.est.soil, mod.est.rem.tree,
 fig1.est$model <- c(rep(c("tree_stock","soil_stock","tree_removed",
                           "Tot C seq-excl removed", "Tot C seq-incl removed"), 
                         times=c(5,5,5,5,5)))
-library(cowplot)
+
 theme_set(theme_cowplot())
 
 fig1.est$treat <- factor(fig1.est$treatment, levels=c("Thinning", "Thinning + N", "Thinning + N + P",
@@ -308,6 +371,8 @@ fig1.est$diff <- paste("+", fig1.est$diff, sep="")
 fig1.est$diff[fig1.est$diff=="+0"] <- ""
 
 yl = expression(Thinned ~C ~ (t ~ha^{-1}))
+# make negative value to not show zero in plot
+fig1.est[fig1.est$model == "tree_removed" & fig1.est$thin == "no_thin",4:6] <- -2
 fig2a_new <- ggplot(fig1.est[fig1.est$model == "tree_removed",], 
        aes(x=treat, y=estimate)) + 
   geom_point(size=3, shape=21, fill="white") +
@@ -316,19 +381,21 @@ fig2a_new <- ggplot(fig1.est[fig1.est$model == "tree_removed",],
   ylab(yl) +
   xlab("") +
   scale_x_discrete(labels = c("Thinning", "Thinning + N", "Thinning + NP",
-                              "Self-thinning", "Self-thinning + N")) +
+                              "No thinning", "No thinning + N")) +
   draw_plot_label("(b)", x= 0.5, y = 70, fontface = "plain",  
                   hjust = 0, vjust = 0, size=22 )+
   theme(plot.margin = unit(c(2,0,1,0), "cm"))
 
 yl = expression(C ~stock ~ (t ~ha^{-1}))
-base = data.frame(ystart = c(156.6,115.2), xstart = c(0.75, 0.75), xend = c(5.25, 5.25),
+base = data.frame(ystart = c(150.8,113.6), xstart = c(0.75, 0.75), xend = c(5.25, 5.25),
                   model = c("Tot C seq-excl removed", "Tot C seq-incl removed"))
 fig2b_new <- ggplot(fig1.est[fig1.est$model %in% c("Tot C seq-excl removed", "Tot C seq-incl removed"),], 
        aes(x=treat, y=estimate, fill=model, group=model)) + 
   geom_point(position=position_dodge(0.25), size=3, shape=21) +
   geom_errorbar(aes(ymin=lo_95, ymax=up_95), colour="black", width=.1, position=position_dodge(0.25)) +
-  geom_text(aes(label= diff),hjust=rep(c(-0.8,-0.05),each=5),vjust=-0.65,size=4) +
+  geom_text(aes(label= diff),hjust=c(0,-0.7, -0.7, -0.7, -0.7,  0, -0.2, 2, 2, -0.2),
+                            vjust=-c(0, 0.8,  0.6, 0.6, 0.6, 0, 0.6, 0.6, 0.6, 0.6)
+            ,size=4) +
   geom_segment(aes(x = xstart, y = ystart, xend = xend, yend = ystart, group=model), 
                data = base, linetype="dashed", color= c("red", "black")) +
   ylim(c(0,250)) +
@@ -338,7 +405,7 @@ fig2b_new <- ggplot(fig1.est[fig1.est$model %in% c("Tot C seq-excl removed", "To
   scale_fill_manual(values = c("red", "black"),
                     name = "Model", labels = c("Thinned C included", "Thinned C excluded")) +
   scale_x_discrete(labels = c("Thinning", "Thinning + N", "Thinning + NP",
-                              "Self-thinning", "Self-thinning + N")) + 
+                              "No thinning", "No thinning + N")) + 
   theme(legend.position = c(0.7, 0.3),
         plot.margin = margin(1, 0, 2, 0)) +
   draw_plot_label("(c)", x= 0.5, y = 235, fontface = "plain",  
@@ -346,7 +413,7 @@ fig2b_new <- ggplot(fig1.est[fig1.est$model %in% c("Tot C seq-excl removed", "To
 fig2b_new
 
 library(magick)
-a_pan <- ggdraw() + draw_image("fig1a_im.png", scale = 1.25, width = 1, height = 0.75)+ theme(
+a_pan <- ggdraw() + draw_image("fig1a_dec2020.png", scale = 1.25, width = 1, height = 0.75)+ theme(
   plot.margin = margin(0.5, 0, 0, 0))
 bc = align_plots(fig2a_new, fig2b_new, align = "v")
 dd = plot_grid(bc[[1]], bc[[2]], ncol=1)
@@ -355,7 +422,7 @@ fig2_new <- plot_grid(a_pan, dd, ncol=1, labels = c("     (a)","",""),
                       rel_heights = c(0.69, 2))
 
 #save_plot("fig2_new2.png", fig2_new, base_height = NULL, base_asp = 1, base_width = 8)
-save_plot("fig1_new.png", fig2_new, base_height = NULL, base_asp = 0.77, base_width = 8)
+save_plot("fig1_new_dec2020_n.png", fig2_new, base_height = NULL, base_asp = 0.77, base_width = 8)
 
 # alternative way
 #rr = grid.arrange(grobs=list(a_pan,dd), ncol=1, heights = 0.5:2)
@@ -369,14 +436,14 @@ data.t <- dat
 data.t$thin <- relevel(data.t$thin, ref = "thin")
 
 # other models
-#soilC <- lmerTest::lmer((tot.prod.bio*0.5/1000) ~ N_mean_g_m2 * thin + P + 
+#soilC <- lmerTest::lmer(soil_c ~ N_mean_g_m2 * thin + P + 
 #                          N_mean_g_m2*lat_wgs84 + thin*lat_wgs84 +
 #                          (1|no_exp), 
 #                        data=data.t)
 #summary(soilC)
 # thin * latitude not important so removed for simplicity
 
-#__b) - effect on soil C####
+#__c-d) - effect on soil C####
 data.t$soil_c <-  with(data.t, (C_m2/1000)*10)
 soilC <- lmerTest::lmer(soil_c ~  N_mean_g_m2 * thin + P + 
                           N_mean_g_m2*lat_wgs84 +
@@ -384,7 +451,73 @@ soilC <- lmerTest::lmer(soil_c ~  N_mean_g_m2 * thin + P +
                         data=data.t)
 summary(soilC)
 
-# make plot
+#____c)####
+pp1 <- interactions::interact_plot(model=soilC, pred = lat_wgs84, mod2 = thin, modx=N_mean_g_m2, 
+                                   modx.values=c(0,1), plot.points = T, at=list(P="no_P"),
+                                   partial.residuals = T, centered="none")
+pp2 <- interactions::interact_plot(model=soilC, pred = lat_wgs84, mod2 = thin, modx=N_mean_g_m2, 
+                                   modx.values=c(0,1), plot.points = T, at=list(P="Pxtra"),
+                                   partial.residuals = T, centered="none")#,
+#int.type = "confidence", interval = T)
+
+pp1
+pp2
+p.dat <- ggplot_build(pp1)$data[[2]]
+p.dat$real_treat <- data.t$real_treat
+p.dat$N_added <- data.t$N_mean_g_m2
+# not thinned + N is not used at very high latitude so we need ti cut the line in the graph
+tn.max <- max(p.dat[p.dat$real_treat=="not_thinned+N","x"])
+
+l.dat <- ggplot_build(pp1)$data[[1]]
+l.dat <- rbind(l.dat, ggplot_build(pp2)$data[[1]][101:200,])
+l.dat$real_treat <- rep(c("thinning", "thinning+N", "not_thinned", "not_thinned+N", 
+                          "thinning+NP"), each=100)
+# line on top of each other so add a small value so they are visable
+l.dat[401:500,"y"] <- l.dat[401:500,"y"]+0.5
+# cut the no thin+NP line to fit data range
+l.dat <- l.dat[-which(l.dat$real_treat=="not_thinned+N" & l.dat$x>tn.max),]
+
+yalab = expression(Organic ~soil ~carbon ~stock ~ (t ~ha^{-1}))
+xalab = "Latitude (degree North)"
+fig2_c <- ggplot(p.dat, aes_string(x="x", y="y",color = "real_treat", shape = "real_treat")) +
+  geom_line(data=l.dat, aes_string(y="y", x="x", color="real_treat"), 
+            alpha =1, size = 1.1,inherit.aes = FALSE) +
+  geom_point(size=2)+ #geom_linerange(show.legend = FALSE, alpha=0.2) +
+  draw_plot_label("(c)", x= 57.5, y = 56, fontface = "plain",  
+                  hjust = 0, vjust = 0, size=22 ) +
+  labs(y= yalab, 
+       x= xalab) +
+  #scale_alpha_continuous(guide=FALSE) +
+  scale_y_continuous(breaks=seq(0, 60, 5), expand = c(0, 0), limits = c(0, 60)) +
+  scale_x_continuous(breaks=seq(56, 68, 1), expand = c(0, 0), limits = c(56, 68)) +
+  scale_color_manual(name = "Treatment", 
+                     breaks = c("not_thinned", "not_thinned+N",
+                                "thinning", "thinning+N","thinning+NP"), 
+                     values = c("not_thinned" = "#E69F00", "not_thinned+N" = "#CC79A7",
+                                "thinning" = "black", "thinning+N" = "#009E73","thinning+NP" = "#0072B2"),
+                     labels = c("No thinning", "No thinning + N", 
+                                "Thinning", "Thinning + N", "Thinning + NP")) +
+  scale_shape_manual(name = "Treatment", 
+                     breaks = c("not_thinned", "not_thinned+N",
+                                "thinning", "thinning+N","thinning+NP"), 
+                     values = c(1,2,3,4,5), #c("not_thinned" = "#49b7fc", "not_thinned+N" = "#ff7b00",
+                     #"thinning" = "#17d898", "thinning+N" = "#ff0083","thinning+NP" = "#0015ff"),
+                     labels = c("No thinning", "No thinning + N", 
+                                "Thinning", "Thinning + N", "Thinning + NP")) +
+  theme_classic() +
+  theme(#legend.justification = c(0, 0), 
+    legend.position = c(0.85, 0.81),
+    #legend.key.size = unit(2, "line"),
+    legend.text = element_text(size=12),
+    legend.title = element_text(size=12),
+    #legend.position="none",
+    #    legend.box.background = element_rect(colour = "black"),
+    axis.text = element_text(size=12, color="black"),
+    axis.title = element_text(size=14),
+    plot.margin = unit(c(0.5, 1, 2, 2), units = "lines"))
+fig2_c
+
+#___d) effect####
 lat_grad <- range(data.t$lat_wgs84)
 lat_grad_pred <- seq(lat_grad[1], lat_grad[2], 0.1)
 newDat.soil <- data.frame(N_mean_g_m2 = rep(c(0,1,0,1,1),111), thin = rep(c("thin", "thin","no_thin","no_thin", "thin"),111),
@@ -409,11 +542,11 @@ newDat.soil$eff <- with(newDat.soil, ifelse(vars == "No thinning + N", eff+0.075
 newDat.soil$eff <- with(newDat.soil, ifelse(vars == "Thinning + N + P", eff-0.075, eff))
 
 yl = expression(Effect ~on ~organic ~soil ~C ~sequestration ~ (t ~ha^{-1}))
-cseq.soil.lat <- ggplot(newDat.soil, aes(x=lat_grad, y=eff, colour=vars)) +
+fig2_d <- ggplot(newDat.soil, aes(x=lat_grad, y=eff, colour=vars)) +
   geom_line() +
   xlab("Latitude (degree North)") +
   ylab(yl) +
-  draw_plot_label("(b)", x= 56.5, y = 15.75, fontface = "plain",  
+  draw_plot_label("(d)", x= 56.5, y = 15.75, fontface = "plain",  
                   hjust = 0, vjust = 0, size=22 ) +
   #labs(tag = "B") +
   theme_classic() +
@@ -423,17 +556,19 @@ cseq.soil.lat <- ggplot(newDat.soil, aes(x=lat_grad, y=eff, colour=vars)) +
     legend.title=element_text(size=12), 
     legend.text=element_text(size=12),
     legend.justification=c(0.25,1),
-    legend.position=c(0.22,1))+
+    legend.position=c(0.22,1),
+    plot.margin = unit(c(1.5, 1, 1, 2), units = "lines"))+
     #legend.box.background = element_rect(colour = "black")) +
   scale_y_continuous(limits = c(-2, 16), breaks=seq(-2, 16, 2)) +
-  scale_color_manual(name="Treatments",values=c("#E69F00", "#CC79A7", "black", "#009E73", "#0072B2"), 
+  scale_color_manual(guide=F, # remove guide 
+                     name="Treatments",values=c("#E69F00", "#CC79A7", "black", "#009E73", "#0072B2"), 
                      breaks = c(c("No thinning + N", "Thinning + N + P","Thinning + N",
                                   "Thinning", "No thinning")), 
-                     labels= c("Self-thinning + N", "Thinning + NP","Thinning + N",
-                               "Thinning (reference)", "Self-thinning"))
-#cseq.soil.lat
+                     labels= c("No thinning + N", "Thinning + NP","Thinning + N",
+                               "Thinning (reference)", "No thinning"))
+#fig2_c
 
-#__a) effect on tree production####
+#__a-b) - effect on tree production####
 data.t$totprod_c <-  with(data.t, (tot.prod.bio*0.5/1000))
 totprod.c.lat <- lmerTest::lmer(totprod_c ~ N_mean_g_m2 * thin + P + 
                                   N_mean_g_m2*lat_wgs84  + 
@@ -444,10 +579,78 @@ summary(totprod.c.lat)
 ggplot(data.frame(lat =data.t$lat_wgs84, res= residuals(totprod.c.lat), Nt=data.t$N_mean_g_m2>0), aes(y=res, x=lat, color=Nt)) +
   geom_point()
 
+#____a####
+pp1 <- interactions::interact_plot(model=totprod.c.lat, pred = lat_wgs84, mod2 = thin, modx=N_mean_g_m2, 
+                                   modx.values=c(0,1), plot.points = T, at=list(P="no_P"),
+                                   partial.residuals = T, centered="none")
+pp2 <- interactions::interact_plot(model=totprod.c.lat, pred = lat_wgs84, mod2 = thin, modx=N_mean_g_m2, 
+                                   modx.values=c(0,1), plot.points = T, at=list(P="Pxtra"),
+                                   partial.residuals = T, centered="none")#,
+                                  #int.type = "confidence", interval = T)
+
+pp1
+pp2
+p.dat <- ggplot_build(pp1)$data[[2]]
+p.dat$real_treat <- data.t$real_treat
+# not thinned + N is not used at very high latitude so we need ti cut the line in the graph
+tn.max <- max(p.dat[p.dat$real_treat=="not_thinned+N","x"])
+
+l.dat <- ggplot_build(pp1)$data[[1]]
+l.dat <- rbind(l.dat, ggplot_build(pp2)$data[[1]][101:200,])
+l.dat$real_treat <- rep(c("thinning", "thinning+N", "not_thinned", "not_thinned+N", 
+                          "thinning+NP"), each=100)
+l.dat <- l.dat[-which(l.dat$real_treat=="not_thinned+N" & l.dat$x>tn.max),]
+
+yalab = expression(Tree ~carbon ~stock ~ (t ~ha^{-1}))
+xalab = "Latitude (degree North)"
+fig2_a <- ggplot(p.dat, aes_string(x="x", y="y",color = "real_treat", shape = "real_treat")) +
+  geom_point(size=2)+ #geom_linerange(show.legend = FALSE, alpha=0.2) +
+  geom_line(data=l.dat, aes_string(y="y", x="x", color="real_treat"), 
+            alpha =1, size = 1.1,inherit.aes = FALSE) +
+  draw_plot_label("(a)", x= 57.5, y = 200, fontface = "plain",  
+                  hjust = 0, vjust = 0, size=22 ) +
+  labs(y= yalab, 
+       x= xalab) +
+  #scale_alpha_continuous(guide=FALSE) +
+  scale_y_continuous(breaks=seq(0, 200, 20), expand = c(0, 0), limits = c(0, 210)) +
+  scale_x_continuous(breaks=seq(56, 68, 1),expand = c(0, 0), limits = c(56, 68)) +
+  scale_color_manual(name = "Treatment", 
+                     breaks = c("not_thinned", "not_thinned+N",
+                                "thinning", "thinning+N","thinning+NP"), 
+                     values = c("not_thinned" = "#E69F00", "not_thinned+N" = "#CC79A7",
+                                "thinning" = "black", "thinning+N" = "#009E73","thinning+NP" = "#0072B2"),
+                     labels = c("No thinning", "No thinning + N", 
+                                "Thinning", "Thinning + N", "Thinning + NP")) +
+  scale_shape_manual(name = "Treatment", 
+                     breaks = c("not_thinned", "not_thinned+N",
+                                "thinning", "thinning+N","thinning+NP"), 
+                     values = c(1,2,3,4,5), #c("not_thinned" = "#49b7fc", "not_thinned+N" = "#ff7b00",
+                     #"thinning" = "#17d898", "thinning+N" = "#ff0083","thinning+NP" = "#0015ff"),
+                     labels = c("No thinning", "No thinning + N", 
+                                "Thinning", "Thinning + N", "Thinning + NP")) +
+  theme_classic() +
+  theme(#legend.justification = c(0, 0), 
+    legend.position = c(0.8, 0.25),#c(0.85, 0.81),
+    #legend.key.size = unit(2, "line"),
+    legend.text = element_text(size=12),
+    legend.title = element_text(size=12),
+    #legend.position="none",
+    #    legend.box.background = element_rect(colour = "black"),
+    axis.text = element_text(size=12, color="black"),
+    axis.title = element_text(size=14),
+    plot.margin = unit(c(0.5, 2, 2, 1), units = "lines"))
+fig2_a
+
+#____b) effect####
 lat_grad <- range(data.t$lat_wgs84)
 lat_grad_pred <- seq(lat_grad[1], lat_grad[2], 0.1)
 newDat <- data.frame(N_mean_g_m2 = rep(c(0,1,0,1,1),111), thin = rep(c("thin", "thin","no_thin","no_thin", "thin"),111),
                      P = rep(c("no_P","no_P","no_P","no_P","Pxtra"),111), lat_grad = lat_grad_pred)
+
+#pred.site <- with(data.t, unique(cbind(no_exp, lat_wgs84,lon_wgs84)))
+#newDat <- data.frame(N_mean_g_m2 = rep(c(0,1,0,1,1),29), thin = rep(c("thin", "thin","no_thin","no_thin", "thin"),29),
+#                     P = rep(c("no_P","no_P","no_P","no_P","Pxtra"),29), lat_wgs84 = lat_grad_pred, )
+#predict(totprod.c.lat, newDat)
 
 newDat$thin <- relevel(newDat$thin, ref="thin")
 X <- model.matrix( ~ N_mean_g_m2 * thin + P + N_mean_g_m2*lat_grad,
@@ -468,11 +671,11 @@ newDat$eff <- with(newDat, ifelse(vars == "No thinning + N", eff+0.075, eff))
 newDat$eff <- with(newDat, ifelse(vars == "Thinning + N + P", eff-0.075, eff))
 
 yl = expression(Effect ~on ~total ~tree ~C ~sequestration ~ (t ~ha^{-1}))
-cseq.totprod.lat <- ggplot(newDat, aes(x=lat_grad, y=eff, colour=vars)) +
+fig2b <- ggplot(newDat, aes(x=lat_grad, y=eff, colour=vars)) +
   geom_line() +
   xlab("Latitude (degree North)") +
   ylab(yl) +
-  draw_plot_label("(a)", x= 56.5, y = 75, fontface = "plain",  
+  draw_plot_label("(b)", x= 56.5, y = 73, fontface = "plain",  
                   hjust = 0, vjust = 0, size=22 ) +
   #labs(tag = "B") +
   theme_classic() +
@@ -482,30 +685,39 @@ cseq.totprod.lat <- ggplot(newDat, aes(x=lat_grad, y=eff, colour=vars)) +
         legend.title=element_text(size=12), 
         legend.text=element_text(size=12),
         legend.justification=c(0.25,1),
-        legend.position=c(0.22,1))+
+        legend.position=c(0.22,1),
+        plot.margin = unit(c(1.5, 2, 1, 1), units = "lines"))+
   scale_y_continuous(limits = c(-2, 75), breaks=c(seq(0,75, 10))) +
-  scale_color_manual(name="Treatments",values=c("#E69F00", "#CC79A7", "black", "#009E73", "#0072B2"), 
+  scale_color_manual(guide=FALSE,
+                     name="Treatments",values=c("#E69F00", "#CC79A7", "black", "#009E73", "#0072B2"), 
                      breaks = c(c("No thinning + N", "Thinning + N + P","Thinning + N",
                                   "Thinning", "No thinning")), 
-                     labels= c("Self-thinning + N", "Thinning + NP","Thinning + N",
-                               "Thinning (reference)", "Self-thinning"))
-#cseq.totprod.lat
+                     labels= c("No thinning + N", "Thinning + NP","Thinning + N",
+                               "Thinning (reference)", "No thinning"))
+#fig2b
+fig2 <- cowplot::plot_grid(fig2_a, fig2b, fig2_c, fig2_d, 
+                  ncol = 2, nrow = 2, align = "hv")
 
-pdf("figure2_soil_tottree_new.pdf", width=6.33, height=9.75)
-grid.arrange(cseq.totprod.lat, cseq.soil.lat, ncol=1, nrow =2)
+pdf("figure2_sm_soil_tottree_dec2020.pdf", width=12.66, height=9.75)
+fig2
+#grid.arrange(fig2_a_sm, fig2_b_sm, ncol=1, nrow =2)
 dev.off()
 
+#pdf("figure2_soil_tottree_oct2020.pdf", width=6.33, height=9.75)
+#grid.arrange(cseq.totprod.lat, cseq.soil.lat, ncol=1, nrow =2)
+#dev.off()
+
 #__Stat tables####
-tab_model(list(totprod.c.lat, soilC), 
-          pred.labels = c("Intercept (Thinned)", "Nitrogen", "Self-thinned", 
+tab_model(list(soilC, totprod.c.lat), 
+          pred.labels = c("Intercept (Thinned)", "Nitrogen", "No thinning", 
                           "P added (Thinned,Nitrogen)", "Latitude",
-                          "Nitrogen x Self-thinned", "Nitrogen x Latitude"), 
+                          "Nitrogen x No thinning", "Nitrogen x Latitude"), 
           dv.labels = c("Soil C (t ha-1)", "Total tree net C"), collapse.ci = TRUE,
           show.re.var = TRUE, show.icc = FALSE, show.r2 = FALSE,
-          file="models_fig2.html")
+          file="models_fig2_dec.html")
 
-# Figure 5 and 3####
-#__Fig 5) SOC versus productivity####
+# Figure 4 and 3####
+#__Fig 4) SOC versus productivity####
 data.t <- dat
 data.t$prod.C.ton.ha_yr <- data.t$tot.prod.bio*(0.5/10000)/data.t$age_last
 data.t$C_m2.ton.ha <- (data.t$C_m2/1000)*10 
@@ -550,7 +762,7 @@ colnames(agg.dat)[c(1,2)] <- c(ya, xa)
 
 yalab = expression(Soil~organic~carbon~(t~ha^{-1}))
 xalab = expression(Net~tree~carbon~uptake ~ (t ~ha^{-1} ~yr^{-1}))
-fig5 <- ggplot(agg.dat, aes_string(x=xa, y=ya,color = "real_treat", shape = "real_treat")) +
+fig4 <- ggplot(agg.dat, aes_string(x=xa, y=ya,color = "real_treat", shape = "real_treat")) +
   geom_point(size=2)+ #geom_linerange(show.legend = FALSE, alpha=0.2) +
   geom_line(data=l.dat, aes_string(y="y", x="x", color="real_treat"), 
             alpha =1, size = 1.1,inherit.aes = FALSE) +
@@ -564,14 +776,14 @@ fig5 <- ggplot(agg.dat, aes_string(x=xa, y=ya,color = "real_treat", shape = "rea
                                 "thinning", "thinning+N","thinning+NP"), 
                      values = c("not_thinned" = "#E69F00", "not_thinned+N" = "#CC79A7",
                                 "thinning" = "black", "thinning+N" = "#009E73","thinning+NP" = "#0072B2"),
-                     labels = c("Self-thinning", "Self-thinning + N", 
+                     labels = c("No thinning", "No thinning + N", 
                                 "Thinning", "Thinning + N", "Thinning + NP")) +
   scale_shape_manual(name = "Treatment", 
                      breaks = c("not_thinned", "not_thinned+N",
                                 "thinning", "thinning+N","thinning+NP"), 
                      values = c(1,2,3,4,5), #c("not_thinned" = "#49b7fc", "not_thinned+N" = "#ff7b00",
                      #"thinning" = "#17d898", "thinning+N" = "#ff0083","thinning+NP" = "#0015ff"),
-                     labels = c("Self-thinning", "Self-thinning + N", 
+                     labels = c("No thinning", "No thinning + N", 
                                 "Thinning", "Thinning + N", "Thinning + NP")) +
     theme_classic() +
   theme(#legend.justification = c(0, 0), 
@@ -584,16 +796,16 @@ fig5 <- ggplot(agg.dat, aes_string(x=xa, y=ya,color = "real_treat", shape = "rea
     axis.text = element_text(size=12, color="black"),
     axis.title = element_text(size=14)) #+
 
-fig5
+fig4
 
-pdf("figure5_soilC_prod.pdf", width=6.5, height=5)
-grid.arrange(fig5)
+pdf("figure4_soilC_prod_dec.pdf", width=6.5, height=5)
+grid.arrange(fig4)
 dev.off()
 
 #____Stat tables####
 # stats
 tab_model(SOCvsProd, 
-          pred.labels = c("Intercept (Self-thinned)", "Nitrogen", "Thinned", 
+          pred.labels = c("Intercept (No thinning)", "Nitrogen", "Thinned", 
                           "Nitrogen x Thinned","P (Thinned,Nitrogen)",
                           "Net tree C uptake",  
                           "Nitrogen x Net tree C uptake", "Thinned x Net tree C uptake", 
@@ -615,6 +827,182 @@ resp.sub <- resp[!(resp$site_month == "933_june" | resp$site_month == "933_augus
 resp.sub$temp.ce <- scale(resp.sub$soil_temp_C, scale=FALSE)
 resp.sub$wc.ce <- scale(resp.sub$wc_percent, scale=FALSE)
 resp.sub <- droplevels(resp.sub) # remove if there are odd levels left
+
+# Calculate mean N application and
+# standardize so this is the N effect in models corrsponds
+# to 89.5 g N per square meter
+mean.N <- mean(resp.sub[resp.sub$N_g_m2>0,"N_g_m2"])
+resp.sub$N_mean_g_m2 <- resp.sub$N_g_m2/mean.N
+resp.sub$thin <- relevel(resp.sub$thin, ref = "thin")
+
+
+# test latitude effect with missing temp and wc data
+mod.per.area <- lmer(log(flux.quad) ~ N_mean_g_m2*thin + lat + wc.ce + temp.ce + (1|site/plot), 
+                               data = resp.sub)
+summary(mod.per.area)
+anova(mod.per.area, type = "2") # no latitude effect P=0.85 (F=0.04, DF=26 (Satterthwaite's) )
+
+
+
+#___sm_fig_soil resp, temp, wc####
+#____a)_resp####
+resp.sub.site <-  aggregate(cbind(soil_temp_C, wc_percent, flux.quad) ~ plot+site+N_mean_g_m2+thin+lat+treatment, resp.sub,FUN=mean)
+
+# plot raw respiration data (boxplot)
+ggplot(resp.sub.site, aes(x=treatment, y=flux.quad)) +
+  geom_boxplot()
+
+yalab = expression("Soil respiration ("*mg~ C~ m^{-2}~ h^{-1}*")")
+#xalab = "Latitude (degree North)"
+fig3_a_sm <- ggplot(resp.sub.site, aes(x=treatment, y=flux.quad)) +
+  geom_boxplot() +
+  draw_plot_label("(a)", x= 1, y = 765, fontface = "plain",  
+                  hjust = 0, vjust = 0, size=22 ) +
+  labs(y= yalab, 
+       x= "") +
+  scale_y_continuous(breaks=seq(0, 800, 100), expand = c(0, 0), limits = c(0, 800)) +
+  scale_x_discrete(limits= c("thinning", "thinning+N", "not_thinned", "not_thinned+N"), 
+                     #values = c("not_thinned" = "#E69F00", "not_thinned+N" = "#CC79A7",
+                    #            "thinning" = "black", "thinning+N" = "#009E73"),
+                     labels = c("Thinning", "Thinning \n+ N", "No thinning", "No thinning \n+ N")) +
+  theme_classic() +
+  theme(legend.text = element_text(size=12),
+    legend.title = element_text(size=12),
+    axis.text = element_text(size=12, color="black"),
+    axis.title = element_text(size=14),
+    plot.margin = unit(c(0.5, 2, 2, 1), units = "lines"))
+fig3_a_sm
+
+#____b_temp####
+temp.lat <- lmerTest::lmer(soil_temp_C ~ N_mean_g_m2*thin + 
+                                  N_mean_g_m2*lat  +lat*thin + 
+                             (1|site), 
+                                data=resp.sub.site)
+# 3-wat interaction removed. P=0.98
+summary(temp.lat)
+anova(temp.lat)
+
+pp1 <- interactions::interact_plot(model=temp.lat, pred = lat, mod2 = thin, modx=N_mean_g_m2, 
+                                   modx.values=c(0,1), plot.points = T,
+                                   partial.residuals = T, centered="none")
+p.dat <- ggplot_build(pp1)$data[[2]]
+p.dat$real_treat <- resp.sub.site$treatment
+p.dat$N_added <- resp.sub.site$N_mean_g_m2
+# not thinned + N is not used at very high latitude so we need ti cut the line in the graph
+tn.max <- max(p.dat[p.dat$real_treat=="not_thinned+N","x"])
+
+l.dat <- ggplot_build(pp1)$data[[1]]
+l.dat$real_treat <- rep(c("thinning", "thinning+N", "not_thinned", "not_thinned+N"), each=100)
+# cut the no thin+NP line to fit data range
+l.dat <- l.dat[-which(l.dat$real_treat=="not_thinned+N" & l.dat$x>tn.max),]
+
+yalab = expression("Soil temperature " ( degree*C))
+xalab = "Latitude (degree North)"
+fig3_b_sm <- ggplot(p.dat, aes_string(x="x", y="y",color = "real_treat", shape = "real_treat")) +
+  geom_point(size=2)+ #geom_linerange(show.legend = FALSE, alpha=0.2) +
+  geom_line(data=l.dat, aes_string(y="y", x="x", color="real_treat"), 
+            alpha =1, size = 1.1,inherit.aes = FALSE) +
+  draw_plot_label("(b)", x= 57.5, y = 15.5, fontface = "plain",  
+                  hjust = 0, vjust = 0, size=22 ) +
+  labs(y= yalab, 
+       x= xalab) +
+  #scale_alpha_continuous(guide=FALSE) +
+  scale_y_continuous(breaks=seq(8, 16, 1), expand = c(0, 0), limits = c(8, 16)) +
+  scale_x_continuous(breaks=seq(56, 68, 1),expand = c(0, 0), limits = c(56, 68)) +
+  scale_color_manual(name = "Treatment", 
+                     breaks = c("not_thinned", "not_thinned+N",
+                                "thinning", "thinning+N"), 
+                     values = c("not_thinned" = "#E69F00", "not_thinned+N" = "#CC79A7",
+                                "thinning" = "black", "thinning+N" = "#009E73"),
+                     labels = c("No thinning", "No thinning + N", 
+                                "Thinning", "Thinning + N")) +
+  scale_shape_manual(name = "Treatment", 
+                     breaks = c("not_thinned", "not_thinned+N",
+                                "thinning", "thinning+N"), 
+                     values = c(1,2,3,4), #c("not_thinned" = "#49b7fc", "not_thinned+N" = "#ff7b00",
+                     #"thinning" = "#17d898", "thinning+N" = "#ff0083","thinning+NP" = "#0015ff"),
+                     labels = c("No thinning", "No thinning + N", 
+                                "Thinning", "Thinning + N")) +
+  theme_classic() +
+  theme(#legend.justification = c(0, 0), 
+    legend.position = c(0.85, 0.81),
+    #legend.key.size = unit(2, "line"),
+    legend.text = element_text(size=12),
+    legend.title = element_text(size=12),
+    #legend.position="none",
+    #    legend.box.background = element_rect(colour = "black"),
+    axis.text = element_text(size=12, color="black"),
+    axis.title = element_text(size=14),
+    plot.margin = unit(c(0.5, 2, 2, 1), units = "lines"))
+fig3_b_sm
+
+#____c_wc####
+wc.lat <- lmerTest::lmer( wc_percent~ N_mean_g_m2 + thin + 
+                             N_mean_g_m2*lat  +lat*thin + 
+                             (1|site), 
+                           data=resp.sub.site)
+# 3-wat interaction removed. P=0.95
+summary(wc.lat)
+anova(wc.lat)
+
+pp1 <- interactions::interact_plot(model=wc.lat, pred = lat, mod2 = thin, modx=N_mean_g_m2, 
+                                   modx.values=c(0,1), plot.points = T,
+                                   partial.residuals = T, centered="none")
+p.dat <- ggplot_build(pp1)$data[[2]]
+p.dat$real_treat <- resp.sub.site$treatment
+p.dat$N_added <- resp.sub.site$N_mean_g_m2
+# not thinned + N is not used at very high latitude so we need ti cut the line in the graph
+tn.max <- max(p.dat[p.dat$real_treat=="not_thinned+N","x"])
+
+l.dat <- ggplot_build(pp1)$data[[1]]
+l.dat$real_treat <- rep(c("thinning", "thinning+N", "not_thinned", "not_thinned+N"), each=100)
+# cut the no thin+NP line to fit data range
+l.dat <- l.dat[-which(l.dat$real_treat=="not_thinned+N" & l.dat$x>tn.max),]
+
+yalab = expression("Volumetric soil water content " (m^{3}~m^{-3}))
+xalab = "Latitude (degree North)"
+fig3_c_sm <- ggplot(p.dat, aes_string(x="x", y="y",color = "real_treat", shape = "real_treat")) +
+  geom_point(size=2)+ #geom_linerange(show.legend = FALSE, alpha=0.2) +
+  geom_line(data=l.dat, aes_string(y="y", x="x", color="real_treat"), 
+            alpha =1, size = 1.1,inherit.aes = FALSE) +
+  draw_plot_label("(c)", x= 57.5, y = 0.45, fontface = "plain",  
+                  hjust = 0, vjust = 0, size=22 ) +
+  labs(y= yalab, 
+       x= xalab) +
+  #scale_alpha_continuous(guide=FALSE) +
+  scale_y_continuous(breaks=seq(0, 0.5, 0.05), expand = c(0, 0), limits = c(0, 0.5)) +
+  scale_x_continuous(breaks=seq(56, 68, 1),expand = c(0, 0), limits = c(56, 68)) +
+  scale_color_manual(name = "Treatment", 
+                     breaks = c("not_thinned", "not_thinned+N",
+                                "thinning", "thinning+N"), 
+                     values = c("not_thinned" = "#E69F00", "not_thinned+N" = "#CC79A7",
+                                "thinning" = "black", "thinning+N" = "#009E73"),
+                     labels = c("No thinning", "No thinning + N", 
+                                "Thinning", "Thinning + N")) +
+  scale_shape_manual(name = "Treatment", 
+                     breaks = c("not_thinned", "not_thinned+N",
+                                "thinning", "thinning+N"), 
+                     values = c(1,2,3,4), #c("not_thinned" = "#49b7fc", "not_thinned+N" = "#ff7b00",
+                     #"thinning" = "#17d898", "thinning+N" = "#ff0083","thinning+NP" = "#0015ff"),
+                     labels = c("No thinning", "No thinning + N", 
+                                "Thinning", "Thinning + N")) +
+  theme_classic() +
+  theme(#legend.justification = c(0, 0), 
+    legend.position = c(0.85, 0.81),
+    #legend.key.size = unit(2, "line"),
+    legend.text = element_text(size=12),
+    legend.title = element_text(size=12),
+    #legend.position="none",
+    #    legend.box.background = element_rect(colour = "black"),
+    axis.text = element_text(size=12, color="black"),
+    axis.title = element_text(size=14),
+    plot.margin = unit(c(0.5, 2, 2, 1), units = "lines"))
+fig3_c_sm
+fig3_sm <- plot_grid(fig3_a_sm, fig3_b_sm, fig3_c_sm, align = "v", ncol = 1)
+
+pdf("figure3_resp_temp_wc_sm_dec2020.pdf", width=6.33, height=14.65)
+fig3_sm
+dev.off()
 
 # soil water content is missing at two sites
 # we use imputation to deal with this
@@ -705,11 +1093,11 @@ fig3 <- ggplot(newDat, aes(x=vars, y=eff)) +
   scale_x_discrete(limits= c("Thinning", "Thinning + N", 
                              "No thinning", "No thinning + N"),
                    labels= c("Thinning", "Thinning + N", 
-                             "Self-thinning", "Self-thinning + N")) +
+                             "No thinning", "No thinning + N")) +
   scale_y_continuous(limits = c(-35, 35), breaks=seq(-35, 35, 5))
 
 ggsave("figure3_prod_resp.png", fig3, height=10, width=18, units="cm") 
-pdf("figure3_prod_resp.pdf", width=6.5, height=10)
+pdf("figure3_prod_resp_dec2020.pdf", width=6.5, height=10)
 grid.arrange(fig3, ncol=1, nrow =2)
 dev.off()
 
@@ -719,17 +1107,8 @@ write.csv(newDat, file="Figure3_table.csv", row.names = FALSE)
 #Figure 3 model
 write.csv(area.resp.mod, file="Figure3_model.csv", row.names = TRUE)
 
-tab_model(list(tree.stand, soilC, tree.removed, C.stand.stock, c.tot), 
-          pred.labels = c("Intercept (Thinned)", "Nitrogen", "Self-thinned", 
-                          "P added (Thinned,Nitrogen)", "Nitrogen x Self-thinned"), 
-          dv.labels = c("Standing tree C", "Soil C (t ha-1)", "Removed tree C", 
-                        "Total net C uptake-excl removed",
-                        "Total net C uptake-incl removed"), collapse.ci = TRUE,
-          show.re.var = TRUE, show.icc = FALSE, show.r2 = FALSE,
-          file="models_fig1.html")
 
-
-# Figure 4 - NH4/NO3-N conc####
+# Figure 5 - NH4/NO3-N conc####
 mean.N <- mean(dat[dat$N_g_m2>0,"N_g_m2"])
 dat$N_mean_g_m2 <- dat$N_g_m2/mean.N
 data.t <- dat
@@ -737,12 +1116,15 @@ data.t$thin <- relevel(data.t$thin, ref = "thin")
 
 # Test both N compounds
 
-soilNO3 <- lmerTest::lmer(NO3.N_mg_g_soil ~  N_mean_g_m2 * thin + P +
+soilNO3 <- lmerTest::lmer(NO3.N_mg_m2 ~  N_mean_g_m2 * thin + P + #NO3.N_mg_g_soil 
                             (1|no_exp), 
                           data=data.t)
-soilNH4 <- lmerTest::lmer(NH4.N_mg_g_soil ~  N_mean_g_m2 * thin + P +
+soilNH4 <- lmerTest::lmer(NH4.N_mg_m2 ~  N_mean_g_m2 * thin + P + #NH4.N_mg_g_soil
                             (1|no_exp), 
                           data=data.t)
+summary(soilNH4)
+anova(soilNH4, type=2)
+anova(soilNO3, type=2)
 
 NewDat.no3 <- data.frame(N_mean_g_m2 = c(0,1,0,1,1), thin = c("thin", "thin","no_thin","no_thin", "thin"),
                          P = c("no_P","no_P","no_P","no_P","Pxtra"))
@@ -772,55 +1154,101 @@ NewDat.nh4 <- cbind(NewDat.nh4, cis)
 NewDat.nh4$vars <- c("Thinning", "Thinning + N", "No thinning", "No thinning + N", 
                      "Thinning + N + P")
 
-soilNeff <- ggplot(NewDat.no3, aes(x=vars, y=eff)) + 
+# soilNeff <- ggplot(NewDat.no3, aes(x=vars, y=eff)) + 
+#   geom_hline(yintercept=0, lty=2, lwd=1, colour="grey50") +
+#   geom_errorbar(aes(ymin=lo_95, ymax=up_95), 
+#                 lwd=0.7, colour="black", width=0, position=position_nudge(x=0.1)) +
+#   geom_point(size=2, pch=21, aes(fill="white"), position=position_nudge(x=0.1)) +
+#   geom_point(data=NewDat.nh4, aes(x=vars, y=eff, fill="black"), position=position_nudge(x=-0.1), 
+#              size=2, pch=21) +
+#   geom_errorbar(data=NewDat.nh4, aes(ymin=lo_95, ymax=up_95), 
+#                 lwd=0.7, colour="black", width=0, position=position_nudge(x=-0.1)) +
+#   #  ylim(c(-10, 100)) +
+#   xlab("") +
+#    ylab(expression(Effect ~on ~soil ~NH[4]^{"+"} ~and ~NO[3]^{"-"} ~ (mg ~g^{-1}))) +
+#   theme_classic() +
+#   theme(axis.text  = element_text(size=12, colour="black"),
+#         axis.title.x  = element_text(size=14),
+#         legend.title=element_text(size=14),
+#         legend.text=element_text(size=14),
+#         #legend.key.size = 3,
+#         legend.justification=c(0.90,.3), 
+#         legend.position=c(0.9,.3)) +
+#   coord_flip() +
+#   scale_x_discrete(limits= c("Thinning", "Thinning + N", "Thinning + N + P",
+#                              "No thinning", "No thinning + N"),
+#                    labels= c("Thinning", "Thinning + N", "Thinning + NP",
+#                              "No thinning", "No thinning + N")) +
+#   #scale_y_continuous(limits = c(-0.02, 0.05), breaks=seq(-0.02, 0.05, 0.01)) +
+#   scale_fill_manual(name="Model",values=c("black", "white"), breaks = c("white", "black"), 
+#                     labels= c(expression(NO[3]^{"-"}), expression(NH[4]^{"+"})))
+# soilNeff
+#ggsave("Figure4_NHNO_N.png", soilNeff, height=10, width=18, units="cm") 
+#pdf("Figure4_NHNO_N.pdf", width=6.5, height=5)
+#grid.arrange(soilNeff, ncol=1, nrow =1)
+#dev.off()
+
+fig5_a <- ggplot(NewDat.nh4, aes(x=vars, y=eff)) + 
   geom_hline(yintercept=0, lty=2, lwd=1, colour="grey50") +
   geom_errorbar(aes(ymin=lo_95, ymax=up_95), 
-                lwd=0.7, colour="black", width=0, position=position_nudge(x=0.1)) +
-  geom_point(size=2, pch=21, aes(fill="white"), position=position_nudge(x=0.1)) +
-  geom_point(data=NewDat.nh4, aes(x=vars, y=eff, fill="black"), position=position_nudge(x=-0.1), 
-             size=2, pch=21) +
-  geom_errorbar(data=NewDat.nh4, aes(ymin=lo_95, ymax=up_95), 
-                lwd=0.7, colour="black", width=0, position=position_nudge(x=-0.1)) +
-  #  ylim(c(-10, 100)) +
+                lwd=0.7, colour="black", width=0) +
+  geom_point(size=2) +
   xlab("") +
-   ylab(expression(Effect ~on ~soil ~NH[4]^{"+"} ~and ~NO[3]^{"-"} ~ (mg ~g^{-1}))) +
+  ylab(expression(Effect ~on ~organic ~soil ~NH[4]^{"+"} ~ (mg ~m^{-2}))) +
   theme_classic() +
   theme(axis.text  = element_text(size=12, colour="black"),
-        axis.title.x  = element_text(size=14),
-        legend.title=element_text(size=14),
-        legend.text=element_text(size=14),
-        #legend.key.size = 3,
-        legend.justification=c(0.90,.3), 
-        legend.position=c(0.9,.3)) +
+        axis.title.x  = element_text(size=14)) +
   coord_flip() +
+  draw_plot_label("(a)", y= -200, x = 5.35, fontface = "plain",  
+                  hjust = 0, vjust = 0, size=22 ) +
   scale_x_discrete(limits= c("Thinning", "Thinning + N", "Thinning + N + P",
                              "No thinning", "No thinning + N"),
                    labels= c("Thinning", "Thinning + N", "Thinning + NP",
-                             "Self-thinning", "Self-thinning + N")) +
-  scale_y_continuous(limits = c(-0.02, 0.05), breaks=seq(-0.02, 0.05, 0.01)) +
-  scale_fill_manual(name="Model",values=c("black", "white"), breaks = c("white", "black"), 
-                    labels= c(expression(NO[3]^{"-"}), expression(NH[4]^{"+"})))
+                             "No thinning", "No thinning + N")) +
+  scale_y_continuous(limits = c(-250, 1000), breaks=seq(-250, 1000, 250)) 
+fig5_a
+fig5_b <- ggplot(NewDat.no3, aes(x=vars, y=eff)) + 
+  geom_hline(yintercept=0, lty=2, lwd=1, colour="grey50") +
+  geom_errorbar(aes(ymin=lo_95, ymax=up_95), 
+                lwd=0.7, colour="black", width=0) +
+  geom_point(size=2) +
+  xlab("") +
+  ylab(expression(Effect ~on ~organic ~soil ~NO[3]^{"-"} ~ (mg ~m^{-2}))) +
+  theme_classic() +
+  theme(axis.text  = element_text(size=12, colour="black"),
+        axis.title.x  = element_text(size=14)) +
+  coord_flip() +
+  draw_plot_label("(b)", y= -5, x = 5.35, fontface = "plain",  
+                  hjust = 0, vjust = 0, size=22 ) +
+  scale_x_discrete(limits= c("Thinning", "Thinning + N", "Thinning + N + P",
+                             "No thinning", "No thinning + N"),
+                   labels= c("Thinning", "Thinning + N", "Thinning + NP",
+                             "No thinning", "No thinning + N")) +
+  scale_y_continuous(limits = c(-6, 12), breaks=seq(-6, 12, 2)) 
+fig5_b
 
-ggsave("Figure4_NHNO_N.png", soilNeff, height=10, width=18, units="cm") 
-pdf("Figure4_NHNO_N.pdf", width=6.5, height=5)
-grid.arrange(soilNeff, ncol=1, nrow =1)
+fig5 <- cowplot::plot_grid(fig5_a, fig5_b,nrow = 1, align = "h")
+
+pdf("figure5_minN_dec2020.pdf", width=12.66, height=5)
+fig5
+#grid.arrange(fig2_a_sm, fig2_b_sm, ncol=1, nrow =2)
 dev.off()
 
 # Supp mtrl####
 #__Stat tables####
 # stats
-tab_model(list(soilNO3, soilNH4), 
-          pred.labels = c("Intercept (thinned)", "Nitrogen", "Self-thinned", 
-                          "P added (Self-thinned,Nitrogen)", "Nitrogen x Self-thinned"), 
-          dv.labels = c("Soil NH4+-N (mg g-1)", "NO3-N"), collapse.ci = TRUE,
+tab_model(list(soilNH4, soilNO3), 
+          pred.labels = c("Intercept (thinned)", "Nitrogen", "No thinning", 
+                          "P added (No thinning,Nitrogen)", "Nitrogen x No thinning"), 
+          dv.labels = c("Soil NH4+-N (mg m-2)", "NO3-N (mg m-2)"), collapse.ci = TRUE,
           show.re.var = TRUE, show.icc = FALSE, show.r2 = FALSE,digits = 4,
           file="models_fig5.html")
 
 # numbers in figure
 # numbers
 SMfig1 <- rbind(NewDat.no3, NewDat.nh4)
-SMfig1$model <- c(rep(c("NO3","NH4"), each=5))
-write.csv(SMfig1, "SMfig1_table.csv", row.names = FALSE)
+SMfig1$model <- c(rep(c("NH4", "NO3"), each=5))
+write.csv(SMfig1, "fig5_table.csv", row.names = FALSE)
 
 # Area managed boreal forest w/o permafrost####
 # not permission to put these files online at the moment
